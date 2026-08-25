@@ -3,5 +3,6 @@ dist/
 coverage/
 .pi/
 *.log
+package-lock.json
 .DS_Store
 .fuse_hidden*

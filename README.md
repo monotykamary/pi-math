@@ -51,14 +51,14 @@ Or clone the repository into Pi's global extension directory:
 git clone https://github.com/monotykamary/pi-math.git \
   ~/.pi/agent/extensions/pi-math
 cd ~/.pi/agent/extensions/pi-math
-npm install --omit=dev
+pnpm install --omit=dev
 ```
 
 Or keep the checkout elsewhere and symlink it:
 
 ```bash
 cd /path/to/pi-math
-npm install --omit=dev
+pnpm install --omit=dev
 ln -sfn "$PWD" ~/.pi/agent/extensions/pi-math
 ```
 
@@ -169,20 +169,20 @@ See [Architecture](docs/ARCHITECTURE.md) for module boundaries, cache behavior, 
 ## Development
 
 ```bash
-npm install
-npm run check
-npm run visual -- gallery
-npm run visual -- radical
-npm run visual -- aligned
-npm run visual -- complex
-npm run visual -- theory
-npm run visual -- inline
+pnpm install
+pnpm check
+pnpm visual -- gallery
+pnpm visual -- radical
+pnpm visual -- aligned
+pnpm visual -- complex
+pnpm visual -- theory
+pnpm visual -- inline
 ```
 
 Set `MATH_WIDTH` to exercise a specific Markdown width:
 
 ```bash
-MATH_WIDTH=60 npm run visual -- theory
+MATH_WIDTH=60 pnpm visual -- theory
 ```
 
 The automated suite covers MathJax rasterization, transparent ink bounds, fixed and width-limited scales, one-row inline fitting, dynamic raster density, tall formulas, macros, tags, Unicode text, malformed-input diagnostics, nested/commented TeX scanning, Markdown code exclusion, Kitty Unicode placeholders, Kitty/iTerm2 compatibility placement, capability fallback, resize layout, byte-bounded LRU behavior, cache stability, source restoration, and patch removal.
