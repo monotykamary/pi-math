@@ -125,6 +125,49 @@ test("drops raster density rather than rejecting very wide terminal canvases", a
   assertTransparentBleed(result);
 });
 
+test("rasterizes commutative diagrams and dense display structures without clipping", async () => {
+  const renderer = await createTerminalMathRenderer();
+  const formulas = [
+    String.raw`\begin{CD}
+0 @>>> A @>{f}>> B @>{g}>> C @>>> 0 \\
+@. @VV{\alpha}V @VV{\beta}V @VV{\gamma}V @. \\
+0 @>>> A' @>>{f'}> B' @>>{g'}> C' @>>> 0
+\end{CD}`,
+    String.raw`\begin{CD}
+P @>{\pi_1}>> B \\
+@V{\pi_2}VV @VV{f}V \\
+A @>>{g}> C
+\end{CD}`,
+    String.raw`\begin{CD}
+A @>{h}>> B \\
+@| @VV{k}V \\
+A @>>{kh}> C
+\end{CD}`,
+    String.raw`\begin{array}{ccc}
+\ker f & \xrightarrow{\ \iota\ } & A \\
+\downarrow & & \downarrow f \\
+0 & \xrightarrow{\ \ } & B
+\end{array}`,
+    String.raw`\begin{aligned}
+\oint_C \mathbf{B}\cdot d\mathbf{l} &= \mu_0\left(I_{\mathrm{enc}} + \varepsilon_0\frac{d\Phi_E}{dt}\right) \\
+\nabla\cdot\mathbf{E} &= \frac{\rho}{\varepsilon_0}
+\end{aligned}`,
+    String.raw`\mathbb{E}\big[e^{itX}\big] = \prod_{k=1}^{n}\frac{1}{1 - it/k}`,
+    String.raw`\begin{pmatrix}
+1 & \alpha & \alpha^2 & \cdots & \alpha^{n-1} \\
+1 & \beta & \beta^2 & \cdots & \beta^{n-1}
+\end{pmatrix}`,
+    String.raw`\boxed{E = mc^2} \qquad\text{and}\qquad \boxed{\zeta(3)=\sum_{n=1}^{\infty}\frac{1}{n^3}}`,
+  ];
+
+  for (const formula of formulas) {
+    const result = renderer.render(formula, true, "#b5bd68", layout);
+    assert.ok(result, renderer.lastFailure?.message);
+    assert.ok(isPng(result.base64Data));
+    assertTransparentBleed(result);
+  }
+});
+
 test("rejects invalid LaTeX with structured diagnostics", async () => {
   const renderer = await createTerminalMathRenderer();
   assert.equal(renderer.render(String.raw`\definitelyUnknown{x}`, true, "#fff000", layout), undefined);

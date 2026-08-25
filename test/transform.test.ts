@@ -110,6 +110,17 @@ test("recognizes standalone equation environments", () => {
   assert.doesNotMatch(output, /^\\begin/u);
 });
 
+test("recognizes standalone amscd diagrams", () => {
+  const source = String.raw`\begin{CD}
+P @>>> B \\
+@VVV @VVV \\
+A @>>> C
+\end{CD}`;
+  const output = expandMathInMarkdown(source, renderOneLine);
+  assert.match(output, new RegExp(GENERATED_MATH_LANGUAGE));
+  assert.doesNotMatch(output, /^\\begin/u);
+});
+
 test("ignores closers in TeX comments and matches nested environments", () => {
   const display = String.raw`$$a % $$ ignored
  + b$$`;

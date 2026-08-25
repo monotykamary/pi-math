@@ -14,12 +14,12 @@ pi-math uses MathJax for mathematical typesetting and Resvg for rasterization. I
 - Compatible Kitty graphics and iTerm2 display-image placement through Pi TUI
 - Inline delimiters: `$...$` and `\(...\)`
 - Display delimiters: `$$...$$` and `\[...\]`
-- Common display environments, including `equation`, `align`, `aligned`, `gather`, matrices, and cases
+- Common display environments, including `equation`, `align`, `aligned`, `gather`, matrices, cases, and amscd `CD` diagrams
 - Native MathJax support for fractions, roots, scripts, limits, scalable fences, `\boxed`, and nested structures
 - One consistent base formula size across messages
 - Minimum necessary proportional shrinking when a formula exceeds the content width
 - Cell-aware centering and automatic rerendering after terminal resize
-- Alpha-bound clipping detection, dynamic raster density, and transparent safety bleed
+- Alpha-bound clipping detection, dynamic raster density, and minimal adaptive transparent safety bleed
 - Separate byte-bounded SVG and PNG caches
 - Configurable TeX macros, environments, font files, and cross-platform system-font discovery
 - Original LaTeX fallback when image rendering or a formula is unsupported

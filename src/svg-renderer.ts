@@ -17,6 +17,7 @@ const MAX_RASTER_CACHE_BYTES = 64 * 1024 * 1024;
 const BASE_EX_TO_CELL_HEIGHT = 0.5;
 const PREFERRED_DEVICE_SCALE = 2;
 const CONTENT_BLEED_PX = 1;
+const MAX_CONTENT_BLEED_PX = 32;
 const DEFAULT_COLOR = "#b5bd68";
 
 export type TeXDefinitionMap = Record<string, string | unknown[]>;
@@ -322,125 +323,136 @@ export async function createSvgMathRenderer(
     try {
       const maxLogicalWidth = layout.maxWidthCells * layout.cellWidthPx;
       const maxLogicalHeight = layout.maxHeightCells * layout.cellHeightPx;
-      const innerWidth = maxLogicalWidth - CONTENT_BLEED_PX * 2;
-      const innerHeight = maxLogicalHeight - CONTENT_BLEED_PX * 2;
-      if (innerWidth <= 0 || innerHeight <= 0) {
-        return rememberFailure(failure("raster-limit", "Terminal cells leave no drawable area"));
-      }
-
       const basePixelsPerEx = layout.cellHeightPx * BASE_EX_TO_CELL_HEIGHT;
-      const widthPixelsPerEx = innerWidth / svg.widthEx;
-      const heightPixelsPerEx = layout.fitHeight
-        ? innerHeight / svg.heightEx
-        : Number.POSITIVE_INFINITY;
-      const pixelsPerEx = Math.min(
-        basePixelsPerEx,
-        widthPixelsPerEx,
-        heightPixelsPerEx,
-      );
-      const logicalContentWidth = svg.widthEx * pixelsPerEx;
-      const logicalContentHeight = svg.heightEx * pixelsPerEx;
-      const columns = Math.max(
-        1,
-        Math.min(
-          layout.maxWidthCells,
-          Math.ceil(
-            (logicalContentWidth + CONTENT_BLEED_PX * 2) / layout.cellWidthPx - 1e-9,
+      const needsExternalFonts = svg.source.includes("<text");
+
+      // MathJax amscd labels can extend beyond the SVG dimensions it reports.
+      // Expand only a clipped formula so ordinary output keeps its compact cell canvas.
+      for (
+        let contentBleedPx = CONTENT_BLEED_PX;
+        contentBleedPx <= MAX_CONTENT_BLEED_PX;
+        contentBleedPx *= 2
+      ) {
+        const innerWidth = maxLogicalWidth - contentBleedPx * 2;
+        const innerHeight = maxLogicalHeight - contentBleedPx * 2;
+        if (innerWidth <= 0 || innerHeight <= 0) {
+          return rememberFailure(failure("raster-limit", "Terminal cells leave no drawable area"));
+        }
+
+        const widthPixelsPerEx = innerWidth / svg.widthEx;
+        const heightPixelsPerEx = layout.fitHeight
+          ? innerHeight / svg.heightEx
+          : Number.POSITIVE_INFINITY;
+        const pixelsPerEx = Math.min(
+          basePixelsPerEx,
+          widthPixelsPerEx,
+          heightPixelsPerEx,
+        );
+        const logicalContentWidth = svg.widthEx * pixelsPerEx;
+        const logicalContentHeight = svg.heightEx * pixelsPerEx;
+        const columns = Math.max(
+          1,
+          Math.min(
+            layout.maxWidthCells,
+            Math.ceil(
+              (logicalContentWidth + contentBleedPx * 2) / layout.cellWidthPx - 1e-9,
+            ),
           ),
-        ),
+        );
+        const rows = Math.max(
+          1,
+          Math.ceil(
+            (logicalContentHeight + contentBleedPx * 2) / layout.cellHeightPx - 1e-9,
+          ),
+        );
+        if (rows > layout.maxHeightCells) {
+          return rememberFailure(
+            failure("height-limit", `Formula requires ${rows} terminal rows`),
+          );
+        }
+
+        const logicalCanvasWidth = columns * layout.cellWidthPx;
+        const logicalCanvasHeight = rows * layout.cellHeightPx;
+        const deviceScale = chooseDeviceScale(logicalCanvasWidth, logicalCanvasHeight);
+        if (!deviceScale) {
+          return rememberFailure(
+            failure("raster-limit", "Formula exceeds the maximum raster dimensions"),
+          );
+        }
+
+        const contentWidth = logicalContentWidth * deviceScale;
+        const contentHeight = logicalContentHeight * deviceScale;
+        const canvasWidth = Math.ceil(logicalCanvasWidth * deviceScale);
+        const canvasHeight = Math.ceil(logicalCanvasHeight * deviceScale);
+        const padded = paddedSvg(
+          svg.source,
+          color,
+          contentWidth,
+          contentHeight,
+          canvasWidth,
+          canvasHeight,
+        );
+        if (!padded) {
+          return rememberFailure(failure("invalid-svg", "Could not construct the padded SVG"));
+        }
+
+        const rendered = new Resvg(padded, {
+          font: {
+            loadSystemFonts: needsExternalFonts && (options.loadSystemFonts ?? true),
+            fontFiles: needsExternalFonts ? options.fontFiles : undefined,
+          },
+          shapeRendering: 2,
+          textRendering: 2,
+          logLevel: "error",
+        }).render();
+        if (
+          rendered.width !== canvasWidth ||
+          rendered.height !== canvasHeight ||
+          rendered.width > MAX_RASTER_WIDTH ||
+          rendered.height > MAX_RASTER_HEIGHT
+        ) {
+          return rememberFailure(
+            failure("raster-limit", "Resvg returned unexpected raster dimensions"),
+          );
+        }
+
+        const inkBounds = alphaBounds(rendered.pixels, rendered.width, rendered.height);
+        if (!inkBounds) {
+          return rememberFailure(failure("empty-raster", "Formula raster contains no visible pixels"));
+        }
+        if (
+          inkBounds.left === 0 ||
+          inkBounds.top === 0 ||
+          inkBounds.right === rendered.width ||
+          inkBounds.bottom === rendered.height
+        ) {
+          continue;
+        }
+
+        const png = rendered.asPng();
+        if (png.byteLength > MAX_PNG_BYTES) {
+          return rememberFailure(
+            failure("png-limit", `Formula PNG exceeds ${MAX_PNG_BYTES} bytes`),
+          );
+        }
+        const base64Data = png.toString("base64");
+        const result: FormulaRaster = {
+          base64Data,
+          widthPx: rendered.width,
+          heightPx: rendered.height,
+          columns,
+          rows,
+          pixelsPerEx,
+          deviceScale,
+          inkBounds,
+        };
+        rasterCache.set(rasterKey, result, png.byteLength + base64Data.length + 128);
+        return result;
+      }
+
+      return rememberFailure(
+        failure("clipped-raster", "Formula ink reaches the adaptive raster boundary"),
       );
-      const rows = Math.max(
-        1,
-        Math.ceil(
-          (logicalContentHeight + CONTENT_BLEED_PX * 2) / layout.cellHeightPx - 1e-9,
-        ),
-      );
-      if (rows > layout.maxHeightCells) {
-        return rememberFailure(
-          failure("height-limit", `Formula requires ${rows} terminal rows`),
-        );
-      }
-
-      const logicalCanvasWidth = columns * layout.cellWidthPx;
-      const logicalCanvasHeight = rows * layout.cellHeightPx;
-      const deviceScale = chooseDeviceScale(logicalCanvasWidth, logicalCanvasHeight);
-      if (!deviceScale) {
-        return rememberFailure(
-          failure("raster-limit", "Formula exceeds the maximum raster dimensions"),
-        );
-      }
-
-      const contentWidth = logicalContentWidth * deviceScale;
-      const contentHeight = logicalContentHeight * deviceScale;
-      const canvasWidth = Math.ceil(logicalCanvasWidth * deviceScale);
-      const canvasHeight = Math.ceil(logicalCanvasHeight * deviceScale);
-      const padded = paddedSvg(
-        svg.source,
-        color,
-        contentWidth,
-        contentHeight,
-        canvasWidth,
-        canvasHeight,
-      );
-      if (!padded) {
-        return rememberFailure(failure("invalid-svg", "Could not construct the padded SVG"));
-      }
-
-      const needsExternalFonts = padded.includes("<text");
-      const rendered = new Resvg(padded, {
-        font: {
-          loadSystemFonts: needsExternalFonts && (options.loadSystemFonts ?? true),
-          fontFiles: needsExternalFonts ? options.fontFiles : undefined,
-        },
-        shapeRendering: 2,
-        textRendering: 2,
-        logLevel: "error",
-      }).render();
-      if (
-        rendered.width !== canvasWidth ||
-        rendered.height !== canvasHeight ||
-        rendered.width > MAX_RASTER_WIDTH ||
-        rendered.height > MAX_RASTER_HEIGHT
-      ) {
-        return rememberFailure(
-          failure("raster-limit", "Resvg returned unexpected raster dimensions"),
-        );
-      }
-
-      const inkBounds = alphaBounds(rendered.pixels, rendered.width, rendered.height);
-      if (!inkBounds) {
-        return rememberFailure(failure("empty-raster", "Formula raster contains no visible pixels"));
-      }
-      if (
-        inkBounds.left === 0 ||
-        inkBounds.top === 0 ||
-        inkBounds.right === rendered.width ||
-        inkBounds.bottom === rendered.height
-      ) {
-        return rememberFailure(
-          failure("clipped-raster", "Formula ink reaches the raster boundary"),
-        );
-      }
-
-      const png = rendered.asPng();
-      if (png.byteLength > MAX_PNG_BYTES) {
-        return rememberFailure(
-          failure("png-limit", `Formula PNG exceeds ${MAX_PNG_BYTES} bytes`),
-        );
-      }
-      const base64Data = png.toString("base64");
-      const result: FormulaRaster = {
-        base64Data,
-        widthPx: rendered.width,
-        heightPx: rendered.height,
-        columns,
-        rows,
-        pixelsPerEx,
-        deviceScale,
-        inkBounds,
-      };
-      rasterCache.set(rasterKey, result, png.byteLength + base64Data.length + 128);
-      return result;
     } catch (error) {
       return rememberFailure(failure("raster-error", errorMessage(error)));
     }

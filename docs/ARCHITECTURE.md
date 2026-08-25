@@ -83,7 +83,7 @@ The same value is applied on both axes. Formulas are never independently stretch
 
 ### Transparent bleed and alpha bounds
 
-The SVG is centered in an integer-cell canvas with transparent safety bleed on every side. After rendering, the raw premultiplied RGBA buffer is scanned for exact half-open ink bounds. A raster is rejected if visible alpha reaches any canvas edge, preventing clipped roots, fraction bars, boxes, accents, or long stroke miters.
+The SVG is centered in an integer-cell canvas with transparent safety bleed on every side. After rendering, the raw premultiplied RGBA buffer is scanned for exact half-open ink bounds. If visible alpha reaches an edge, the renderer progressively expands the bleed and rerasterizes, stopping at the first safe integer-cell canvas. This handles MathJax output whose advertised SVG box is narrower than its ink, such as left labels in amscd pullback diagrams, without padding ordinary formulas. A raster is rejected only if ink still reaches an edge at the bounded maximum, preventing clipped roots, fraction bars, boxes, accents, or long stroke miters.
 
 Small canvases use 2× device density. If 2× would exceed 4096 pixels but the logical cell canvas still fits, the renderer selects 1× rather than rejecting the formula. Display dimensions remain unchanged.
 

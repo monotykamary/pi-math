@@ -24,7 +24,7 @@ export type MathReplacementRender = (
 ) => string | MathRenderResult | undefined;
 
 const BLOCK_ENVIRONMENT_PATTERN =
-  /^\\begin\{(equation\*?|displaymath|math|align\*?|alignat\*?|flalign\*?|gather\*?|multline\*?|split|aligned|alignedat|gathered|array|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|cases)\}/;
+  /^\\begin\{(equation\*?|displaymath|math|align\*?|alignat\*?|flalign\*?|gather\*?|multline\*?|split|aligned|alignedat|gathered|array|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|cases|CD)\}/;
 
 function isEscaped(text: string, index: number): boolean {
   let backslashes = 0;
