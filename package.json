@@ -1,6 +1,6 @@
 {
   "name": "@monotykamary/pi-math",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Render LaTeX as terminal images in Pi's TUI.",
   "author": "Fadouse",
   "homepage": "https://github.com/monotykamary/pi-math#readme",
