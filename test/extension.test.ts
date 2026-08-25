@@ -115,7 +115,7 @@ $$`;
     assert.ok(wideImage);
     const resultRow = wideLines.findIndex((line) => line.trim() === "Result:");
     const imageRow = wideLines.findIndex(isImageLine);
-    assert.equal(imageRow, resultRow + 1);
+    assert.equal(imageRow, resultRow + 2);
     assert.doesNotMatch(wideLines.join("\n"), /\\frac|pi-math|```/u);
 
     const narrowImage = imageLines(display.render(40))[0];

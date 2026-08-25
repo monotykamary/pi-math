@@ -56,12 +56,33 @@ test("places terminal images with reserved rows and capability fallback", () => 
   try {
     setCapabilities({ images: "kitty", trueColor: true, hyperlinks: true });
     const kitty = insertFormulaImages(sourceLines, [placement], area);
-    assert.equal(kitty.length, 4);
+    assert.equal(kitty.length, 6);
     assert.equal(kitty[0], "before");
-    assert.match(kitty[1]!, /^ {8}\x1b_G/u);
-    assert.match(kitty[1]!, /c=4,r=2,i=42/u);
-    assert.equal(kitty[2], "");
-    assert.equal(kitty[3], "after");
+    assert.equal(kitty[1], "");
+    assert.match(kitty[2]!, /^ {8}\x1b_G/u);
+    assert.match(kitty[2]!, /c=4,r=2,i=42/u);
+    assert.equal(kitty[3], "");
+    assert.equal(kitty[4], "");
+    assert.equal(kitty[5], "after");
+
+    // Consecutive formula blocks share one boundary row instead of two.
+    const secondPlacement: FormulaImagePlacement = {
+      ...placement,
+      marker: "__SECOND_FORMULA__",
+      imageId: 44,
+    };
+    const adjacent = insertFormulaImages(
+      [placement.marker, secondPlacement.marker],
+      [placement, secondPlacement],
+      area,
+    );
+    // The extra row after each "<image>" is that image's own reserved
+    // second row. The single blank at index 3 is the one shared spacer between
+    // the two formulas instead of one doubled per formula.
+    assert.deepEqual(
+      adjacent.map((line) => (line.includes("\x1b_G") ? "<image>" : line)),
+      ["", "<image>", "", "", "<image>", "", ""],
+    );
 
     const inline = insertFormulaImages(
       [`left ${inlinePlacement.marker} right`],
@@ -75,14 +96,16 @@ test("places terminal images with reserved rows and capability fallback", () => 
 
     setCapabilities({ images: "iterm2", trueColor: true, hyperlinks: true });
     const iterm = insertFormulaImages(sourceLines, [placement], area);
-    assert.deepEqual([iterm[0], iterm[1], iterm[3]], ["before", "", "after"]);
-    assert.match(iterm[2]!, /^ {8}\x1b\[1A\x1b\]1337;File=/u);
-    assert.match(iterm[2]!, /width=4;height=auto/u);
+    assert.deepEqual([iterm[0], iterm[1], iterm[2], iterm[4], iterm[5]], ["before", "", "", "", "after"]);
+    assert.match(iterm[3]!, /^ {8}\x1b\[1A\x1b\]1337;File=/u);
+    assert.match(iterm[3]!, /width=4;height=auto/u);
 
     setCapabilities({ images: null, trueColor: true, hyperlinks: true });
     assert.deepEqual(insertFormulaImages(sourceLines, [placement], area), [
       "before",
+      "",
       "$$x$$",
+      "",
       "after",
     ]);
   } finally {

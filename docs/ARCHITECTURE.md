@@ -124,7 +124,7 @@ Known Kitty/Ghostty environments use placeholders. Other Kitty-protocol terminal
 
 ### Display formulas
 
-Display and standalone formulas are centered inside the Markdown content width after component padding. Kitty emits the image sequence on the first occupied row and reserves the remaining rows. iTerm2 reserves preceding rows and emits its image with a cursor-up offset and `height=auto`.
+Display and standalone formulas are centered inside the Markdown content width after component padding. Each block reserves one empty row above and below the image so formulas never sit flush against neighboring text or each other. Kitty emits the image sequence on the first occupied row and reserves the remaining rows. iTerm2 reserves preceding rows and emits its image with a cursor-up offset and `height=auto`.
 
 ## MathJax safety and compatibility
 

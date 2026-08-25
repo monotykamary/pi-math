@@ -93,13 +93,22 @@ export function insertFormulaImages(
   const blockPlacements = placements.filter(({ inline }) => !inline);
   const inlinePlacements = placements.filter(({ inline }) => inline);
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]!;
     const block = blockPlacements.find(({ marker }) => line.includes(marker));
     if (block) {
       const imageLines = renderBlockPlacement(block, area);
-      output.push(
-        ...(imageLines ?? [line.replace(block.marker, () => block.fallbackText)]),
+      const blockLines =
+        imageLines ?? [line.replace(block.marker, () => block.fallbackText)];
+      // Place one empty row above and below each formula so it never sits
+      // flush against text or another formula. Consecutive formula blocks
+      // share the boundary row instead of doubling it.
+      output.push("");
+      output.push(...blockLines);
+      const nextIsBlock = blockPlacements.some(({ marker }) =>
+        lines[lineIndex + 1]?.includes(marker),
       );
+      if (!nextIsBlock) output.push("");
       continue;
     }
 
