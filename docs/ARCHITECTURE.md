@@ -30,6 +30,7 @@ source Markdown
 | `src/index.ts` | Extension initialization, lifecycle hooks, diagnostics, and `/math-render` commands |
 | `src/config.ts` | Cross-platform environment configuration for macros, environments, and fonts |
 | `src/markdown-patch.ts` | Reversible `Markdown.render()` integration and per-component transform caching |
+| `src/text-color.ts` | Formula ink color from Pi's active theme `text` token, component default styles, or `PI_MATH_COLOR` |
 | `src/transform.ts` | Comment-aware LaTeX delimiter/environment scanning while excluding Markdown, HTML code, and TeX verbatim commands |
 | `src/renderer.ts` | Message-level normalization facade around the rasterizer |
 | `src/svg-renderer.ts` | Safe MathJax initialization, SVG extraction, sizing, alpha-bound checks, Resvg rasterization, and two-level caches |
@@ -42,6 +43,10 @@ source Markdown
 ### Source immutability
 
 The Markdown patch temporarily replaces the component's internal text only during `Markdown.render()`. A `finally` block restores the exact source string before returning. Session data and provider context therefore retain the original delimiters and LaTeX.
+
+### Coexistence with wholesale render patches
+
+Some extensions replace `Markdown.prototype.render` outright instead of chaining (pi-streaming-guard's incremental renderer does this on `session_start` and on mid-session toggles). The pi-math wrapper keeps one stable function identity that delegates through a mutable target and re-asserts itself on top after `session_start` handlers settle and on every `turn_start`. While another patch owns the prototype, formulas fall back to their original LaTeX; once re-layered, images render through the delegate pipeline — again sourced from immutable line arrays, so delegate caches are never poisoned. Disposal in any order unwinds to a functional renderer.
 
 ### One display scale
 

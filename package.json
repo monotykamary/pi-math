@@ -1,15 +1,15 @@
 {
-  "name": "@fadouse/pi-math",
+  "name": "@monotykamary/pi-math",
   "version": "0.2.0",
   "description": "Render LaTeX as terminal images in Pi's TUI.",
   "author": "Fadouse",
-  "homepage": "https://github.com/Fadouse/pi-math#readme",
+  "homepage": "https://github.com/monotykamary/pi-math#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Fadouse/pi-math.git"
+    "url": "git+https://github.com/monotykamary/pi-math.git"
   },
   "bugs": {
-    "url": "https://github.com/Fadouse/pi-math/issues"
+    "url": "https://github.com/monotykamary/pi-math/issues"
   },
   "type": "module",
   "main": "./src/index.ts",

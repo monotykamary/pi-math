@@ -3,24 +3,23 @@ import {
   allocateImageId,
   getCapabilities,
   getCellDimensions,
+  type DefaultTextStyle,
 } from "@earendil-works/pi-tui";
 import { insertFormulaImages, type FormulaImagePlacement } from "./image-layout.js";
 import type { TerminalMathRenderer } from "./renderer.js";
+import { resolveFormulaColor } from "./text-color.js";
 import {
   containsPotentialMath,
   expandMathInMarkdown,
   stripGeneratedMathFenceLines,
 } from "./transform.js";
 
-const DEFAULT_FORMULA_COLOR = "#b5bd68";
 const MAX_RASTER_HEIGHT_PX = 4096;
 
 type MarkdownInternals = {
   text: string;
   paddingX?: number;
-  theme?: {
-    codeBlock?: (text: string) => string;
-  };
+  defaultTextStyle?: DefaultTextStyle;
 };
 
 type MarkdownRender = (this: Markdown, width: number) => string[];
@@ -36,18 +35,18 @@ export interface MathPatchController {
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
   clearTransformCache(): void;
+  /**
+   * Re-assert the wrapper as the outermost Markdown.render. Other extensions
+   * may replace the prototype method wholesale instead of chaining (notably
+   * pi-streaming-guard, which activates on session_start and can be toggled
+   * mid-session); rearm() adopts the current render as the delegation target.
+   */
+  rearm(): void;
   uninstall(): void;
 }
 
 function formulaColor(markdown: MarkdownInternals): string {
-  const styled = markdown.theme?.codeBlock?.("x") ?? "";
-  const trueColor = /\x1b\[38;2;(\d+);(\d+);(\d+)m/.exec(styled);
-  if (!trueColor) return DEFAULT_FORMULA_COLOR;
-
-  return `#${trueColor
-    .slice(1, 4)
-    .map((component) => Number(component).toString(16).padStart(2, "0"))
-    .join("")}`;
+  return resolveFormulaColor({ sampleStyle: markdown.defaultTextStyle?.color });
 }
 
 function imageMarker(
@@ -71,11 +70,15 @@ function allocateMathImageId(): number {
  * and provider context always retain the original LaTeX.
  */
 export function installMarkdownMathPatch(renderer: TerminalMathRenderer): MathPatchController {
-  const originalRender = Markdown.prototype.render;
+  const baseRender = Markdown.prototype.render;
+  let nestedRender: MarkdownRender = baseRender;
   let enabled = true;
   let installed = true;
   let transformCache = new WeakMap<Markdown, CachedTransform>();
 
+  // One stable function identity delegates through a mutable target so rearm()
+  // can re-layer the wrapper over renders installed later without growing the
+  // call chain — and so disabled/uninstalled wrappers degrade to pass-through.
   const patchedRender: MarkdownRender = function (width: number): string[] {
     const markdown = this as unknown as MarkdownInternals;
     const source = markdown.text;
@@ -86,7 +89,7 @@ export function installMarkdownMathPatch(renderer: TerminalMathRenderer): MathPa
       typeof source !== "string" ||
       !containsPotentialMath(source)
     ) {
-      return originalRender.call(this, width);
+      return nestedRender.call(this, width);
     }
 
     const paddingX =
@@ -134,12 +137,12 @@ export function installMarkdownMathPatch(renderer: TerminalMathRenderer): MathPa
     }
 
     if (transformed === source || placements.length === 0) {
-      return originalRender.call(this, width);
+      return nestedRender.call(this, width);
     }
 
     markdown.text = transformed;
     try {
-      const textLines = stripGeneratedMathFenceLines(originalRender.call(this, width));
+      const textLines = stripGeneratedMathFenceLines(nestedRender.call(this, width));
       return insertFormulaImages(textLines, placements, { renderWidth: width, paddingX });
     } finally {
       markdown.text = source;
@@ -155,12 +158,21 @@ export function installMarkdownMathPatch(renderer: TerminalMathRenderer): MathPa
     clearTransformCache() {
       transformCache = new WeakMap();
     },
+    rearm() {
+      if (!installed || Markdown.prototype.render === patchedRender) return;
+      nestedRender = Markdown.prototype.render as MarkdownRender;
+      Markdown.prototype.render = patchedRender;
+    },
     uninstall() {
       enabled = false;
       transformCache = new WeakMap();
       if (installed && Markdown.prototype.render === patchedRender) {
-        Markdown.prototype.render = originalRender;
+        Markdown.prototype.render = nestedRender;
       }
+      // A wholesale replacement installed after this patch may still hold the
+      // patched function; once that replacement unwinds, the disabled wrapper
+      // must pass through to the render captured before this patch existed.
+      nestedRender = baseRender;
       installed = false;
     },
   };

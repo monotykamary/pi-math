@@ -26,9 +26,20 @@ export default async function piMathExtension(pi: ExtensionAPI): Promise<void> {
   const patch = renderer ? installMarkdownMathPatch(renderer) : undefined;
 
   pi.on("session_start", (_event, ctx) => {
+    // pi-streaming-guard replaces Markdown.render wholesale on session_start,
+    // which would leave pi-math bypassed. Defer one macrotask so every
+    // session_start handler has run, then re-layer pi-math on top and delegate
+    // into whatever render won.
+    if (patch) setImmediate(() => patch.rearm());
     if (loadFailure && ctx.mode === "tui") {
       ctx.ui.notify(`pi-math failed to load: ${loadFailure}`, "error");
     }
+  });
+
+  // Re-assert the wrapper each turn: a mid-session "/streaming-guard on" (or
+  // any wholesale re-patch) replaces Markdown.render between turns.
+  pi.on("turn_start", () => {
+    patch?.rearm();
   });
 
   pi.on("session_shutdown", () => {
