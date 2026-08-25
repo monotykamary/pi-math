@@ -128,7 +128,7 @@ PI_MATH_SYSTEM_FONTS    true/false; enabled by default for Unicode text fallback
 PI_MATH_COLOR           Explicit formula ink color as #rrggbb
 ```
 
-Formula ink follows the surrounding Markdown text: the component's own default text color when present (thinking text, custom message text), otherwise the active Pi theme's `text` token. Pi's built-in dark and light themes therefore give matching formula colors in both modes, and custom themes with a concrete `text` token work the same way. Themes that leave `text` at the terminal default get a mode-appropriate neutral color; set `PI_MATH_COLOR` to pin an exact value.
+Formula ink follows the surrounding Markdown text: the component's own default text color when present (for example, custom message text), otherwise the active Pi theme's `text` token. Pi's built-in dark and light themes therefore give matching formula colors in both modes, and custom themes with a concrete `text` token work the same way. Themes that leave `text` at the terminal default get a mode-appropriate neutral color; set `PI_MATH_COLOR` to pin an exact value. Pi's transient italic reasoning stream keeps source LaTeX instead of rasterizing formulas that are rebuilt on every token.
 
 Macro names may be written with or without the leading backslash. Explicit font files are validated before renderer initialization. System font discovery is performed in-process by Resvg and contains no platform-specific hardcoded paths. Reload Pi after changing these variables.
 
@@ -162,7 +162,7 @@ Pi does not currently expose a renderer override for ordinary user and assistant
 
 ### Streaming render extensions
 
-Extensions like [pi-streaming-guard](https://github.com/monotykamary/pi-streaming-guard) replace `Markdown.render()` wholesale instead of chaining through previous wrappers, which would bypass formula rendering. pi-math cooperates: after session startup settles and at the start of every turn it re-asserts itself as the outermost renderer and delegates into whichever render is active underneath, so the guard's incremental token caching and pi-math's formula images compose without configuration. Toggling the guard mid-session heals on the next turn at the latest.
+Extensions like [pi-streaming-guard](https://github.com/monotykamary/pi-streaming-guard) replace `Markdown.render()` wholesale instead of chaining through previous wrappers, which would bypass formula rendering. pi-math cooperates: after session startup settles and at the start of every turn it re-asserts itself as the outermost renderer and delegates into whichever render is active underneath, so the guard's incremental token caching and pi-math's formula images compose without configuration. Toggling the guard mid-session heals on the next turn at the latest. Completed formulas keep stable image IDs across append-only assistant deltas, so Pi's differential renderer does not retransmit every earlier PNG as later tokens arrive.
 
 See [Architecture](docs/ARCHITECTURE.md) for module boundaries, cache behavior, sizing invariants, and failure handling.
 

@@ -149,9 +149,9 @@ The renderer has two weighted LRU caches:
 
 This avoids repeating MathJax conversion when only color or terminal width changes. Failed conversions are negatively cached with structured failure codes.
 
-The Markdown patch uses a `WeakMap` keyed by each `Markdown` component. It stores transformed marker text and image placements for one source/layout/protocol combination, allowing redraws to reuse IDs without retaining destroyed components.
+The Markdown patch uses a `WeakMap` keyed by each `Markdown` component. It stores transformed marker text and image placements for one source/layout/protocol combination. Pi recreates the active assistant's Markdown components on every streaming delta, so the patch also retains at most 32 append-only source lineages per layout. Completed formulas reuse their prior image IDs, keeping unchanged TUI lines byte-identical without retaining an unbounded message history. Whole-block italic reasoning bypasses image rendering because it is transient and rebuilt token by token.
 
-`/math-render clear` clears both renderer caches and the transform cache. `session_shutdown` removes the prototype patch. Pi's differential renderer deletes Kitty images whose IDs disappear from rendered lines.
+`/math-render clear` clears both renderer caches, the component transform cache, and streaming lineages. `session_shutdown` removes the prototype patch. Pi's differential renderer deletes Kitty images whose IDs disappear from rendered lines.
 
 ## Initialization and runtime
 

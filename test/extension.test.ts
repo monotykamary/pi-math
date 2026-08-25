@@ -48,6 +48,12 @@ function kittyImageCount(lines: string[]): number {
   return lines.join("\n").match(/\x1b_Ga=T,/gu)?.length ?? 0;
 }
 
+function kittyImageIds(lines: string[]): number[] {
+  return [...lines.join("\n").matchAll(/\x1b_Ga=T,[^;]*,i=(\d+)(?:,|;)/gu)].map(
+    (match) => Number(match[1]),
+  );
+}
+
 function imageColumns(line: string): number {
   const match = /(?:^|,)c=(\d+)(?:,|;)/.exec(line);
   assert.ok(match);
@@ -89,6 +95,33 @@ test("extension injects terminal images without changing source messages", async
     assert.equal((inline as unknown as { text: string }).text, inlineSource);
     assert.deepEqual(inline.render(80), inlineRendered);
     assert.ok(inlineRendered.every((line) => visibleWidth(line) <= 80));
+
+    const streamingPrefix = String.raw`First line \(x^2\).
+
+Second paragraph`;
+    const prefixIds = kittyImageIds(
+      new Markdown(streamingPrefix, 0, 0, markdownTheme).render(80),
+    );
+    const extendedIds = kittyImageIds(
+      new Markdown(
+        String.raw`First line \(x^2\).
+
+Second paragraph adds \(y^2\).`,
+        0,
+        0,
+        markdownTheme,
+      ).render(80),
+    );
+    assert.equal(prefixIds.length, 1);
+    assert.equal(extendedIds.length, 2);
+    assert.equal(extendedIds[0], prefixIds[0]);
+    assert.notEqual(extendedIds[1], prefixIds[0]);
+
+    const reasoningSource = String.raw`Checking transient reasoning \(x^2\).`;
+    const reasoning = new Markdown(reasoningSource, 0, 0, markdownTheme, { italic: true });
+    const reasoningRendered = reasoning.render(80).join("\n");
+    assert.doesNotMatch(reasoningRendered, /\x1b_G/u);
+    assert.match(reasoningRendered, /x\^2/u);
 
     const chineseSource = String.raw`若 \(n\) 有奇素因子 \(p\)，则保留句内公式。
 
