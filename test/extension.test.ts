@@ -121,7 +121,9 @@ Second paragraph adds \(y^2\).`,
     const reasoning = new Markdown(reasoningSource, 0, 0, markdownTheme, { italic: true });
     const reasoningRendered = reasoning.render(80).join("\n");
     assert.doesNotMatch(reasoningRendered, /\x1b_G/u);
-    assert.match(reasoningRendered, /x\^2/u);
+    // pi-tui prettifies simple inline math to Unicode superscripts in
+    // non-rasterized contexts; accept either the pretty form or the raw source.
+    assert.match(reasoningRendered, /x²|x\^2/u);
 
     const chineseSource = String.raw`若 \(n\) 有奇素因子 \(p\)，则保留句内公式。
 
@@ -177,7 +179,11 @@ Second:
     assert.ok(command);
     await command!("off", context);
     const disabledSource = String.raw`$\frac{1}{2}$`;
-    assert.match(new Markdown(disabledSource, 0, 0, markdownTheme).render(80).join("\n"), /\\frac/u);
+    // With the patch off, pi-math never rasterizes; pi-tui may prettify simple
+    // LaTeX (e.g. \frac{1}{2} → 1/2), so only assert it stays as plain text.
+    const disabledRendered = new Markdown(disabledSource, 0, 0, markdownTheme).render(80).join("\n");
+    assert.doesNotMatch(disabledRendered, /\x1b_G/u);
+    assert.match(disabledRendered, /\\frac|1\/2/u);
 
     await command!("on", context);
     assert.equal(
@@ -188,8 +194,12 @@ Second:
     assert.ok(notifications.some((message) => message.includes("enabled")));
 
     setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+    // Without image support pi-math cannot rasterize; pi-tui renders the
+    // formula as plain text (delimiters prettified away), so assert the
+    // math content stays visible and no image escapes are emitted.
     const unsupported = new Markdown("$$x+1$$", 0, 0, markdownTheme).render(80).join("\n");
-    assert.match(unsupported, /\$\$x\+1\$\$/u);
+    assert.doesNotMatch(unsupported, /\x1b_G/u);
+    assert.match(unsupported, /x\+1/u);
   } finally {
     for (const handler of events.get("session_shutdown") ?? []) await handler({}, context);
     setCapabilities({ images: null, trueColor: false, hyperlinks: false });
