@@ -31,7 +31,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "check": "pnpm typecheck && pnpm test",
+    "check": "bun run typecheck && bun run test",
     "visual": "node --import tsx test/visual-fixture.ts"
   },
   "peerDependencies": {
@@ -62,6 +62,5 @@
   "engines": {
     "node": ">=22.19.0"
   },
-  "license": "MIT",
-  "packageManager": "pnpm@11.20.0"
+  "license": "MIT"
 }
