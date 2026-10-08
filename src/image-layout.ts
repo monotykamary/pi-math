@@ -1,4 +1,4 @@
-import { getCapabilities, renderImage } from "@earendil-works/pi-tui";
+import { getCapabilities, renderImage, visibleWidth } from "@earendil-works/pi-tui";
 import { kittyPlaceholderSupport, renderKittyVirtualImage } from "./kitty-graphics.js";
 import type { FormulaRaster } from "./svg-renderer.js";
 
@@ -62,7 +62,10 @@ function renderBlockPlacement(
 }
 
 /** Place a one-row Kitty image without changing the surrounding text flow. */
-function renderInlinePlacement(placement: FormulaImagePlacement): string | undefined {
+function renderInlinePlacement(
+  placement: FormulaImagePlacement,
+  startColumn: number,
+): string | undefined {
   if (getCapabilities().images !== "kitty" || placement.raster.rows !== 1) return undefined;
 
   if (kittyPlaceholderSupport()) {
@@ -79,7 +82,10 @@ function renderInlinePlacement(placement: FormulaImagePlacement): string | undef
   const rendered = renderNativeImage(placement);
   if (!rendered || rendered.rows !== 1) return undefined;
   const columns = placement.raster.columns;
-  return `${" ".repeat(columns)}\x1b[${columns}D${rendered.sequence}\x1b[${columns}C`;
+  // Reserve cells before painting, then position at their absolute line columns.
+  // Pi's width parser recognizes CHA (G), but relative CUB/CUF (D/C) can
+  // swallow the following APC header and count its PNG payload as visible text.
+  return `${" ".repeat(columns)}\x1b[${startColumn + 1}G${rendered.sequence}\x1b[${startColumn + columns + 1}G`;
 }
 
 /** Replace generated Markdown markers with terminal-native image placements. */
@@ -115,7 +121,8 @@ export function insertFormulaImages(
     let renderedLine = line;
     for (const placement of inlinePlacements) {
       if (!renderedLine.includes(placement.marker)) continue;
-      const image = renderInlinePlacement(placement) ?? placement.fallbackText;
+      const startColumn = visibleWidth(renderedLine.slice(0, renderedLine.indexOf(placement.marker)));
+      const image = renderInlinePlacement(placement, startColumn) ?? placement.fallbackText;
       renderedLine = renderedLine.replace(placement.marker, () => image);
     }
     output.push(renderedLine);

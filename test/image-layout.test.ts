@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setCapabilities, setCellDimensions } from "@earendil-works/pi-tui";
+import { setCapabilities, setCellDimensions, visibleWidth } from "@earendil-works/pi-tui";
 import { insertFormulaImages, type FormulaImagePlacement } from "../src/image-layout.js";
 
 const placement: FormulaImagePlacement = {
@@ -90,9 +90,32 @@ test("places terminal images with reserved rows and capability fallback", () => 
       area,
     );
     assert.equal(inline.length, 1);
-    assert.match(inline[0]!, /^left {4}\x1b\[3D\x1b_G/u);
+    assert.match(inline[0]!, /^left {4}\x1b\[6G\x1b_G/u);
     assert.match(inline[0]!, /c=3,r=1,i=43/u);
-    assert.match(inline[0]!, /\x1b\[3C right$/u);
+    assert.match(inline[0]!, /\x1b\[9G right$/u);
+    assert.equal(visibleWidth(inline[0]!), 14);
+
+    // Payload length must never become visible width, including chunked APCs.
+    // Cursor columns include padding, ANSI-styled CJK and prior images.
+    for (const payloadLength of [512, 9_000]) {
+      const first = {
+        ...inlinePlacement,
+        raster: { ...inlinePlacement.raster, base64Data: "A".repeat(payloadLength) },
+      };
+      const second = { ...first, marker: "\ue002".repeat(3), imageId: 44 };
+      const prefix = "  \x1b[31m界🙂\x1b[39m ";
+      const input = `${prefix}${first.marker} and ${second.marker}.`;
+      const rendered = insertFormulaImages([input], [first, second], area)[0]!;
+      assert.equal(visibleWidth(rendered), visibleWidth(input));
+      assert.equal(visibleWidth(rendered), 19);
+      assert.match(rendered, /\x1b\[8G\x1b_G/u);
+      assert.match(rendered, /\x1b\[11G and/u);
+      assert.match(rendered, /\x1b\[16G\x1b_G/u);
+      assert.match(rendered, /\x1b\[19G\.$/u);
+      assert.match(rendered, /C=1,c=3,r=1,i=43/u);
+      assert.match(rendered, /C=1,c=3,r=1,i=44/u);
+      assert.deepEqual(insertFormulaImages([input], [first, second], area), [rendered]);
+    }
 
     setCapabilities({ images: "iterm2", trueColor: true, hyperlinks: true });
     const iterm = insertFormulaImages(sourceLines, [placement], area);

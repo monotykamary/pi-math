@@ -17,10 +17,10 @@ try {
 import assert from "node:assert/strict";
 import extension from ${JSON.stringify(entry)};
 import { VERSION, initTheme, getMarkdownTheme, AssistantMessageComponent } from "@earendil-works/pi-coding-agent";
-import { Markdown, getCapabilities, setCapabilities, setCapabilityOverrides, resetCapabilitiesCache, setCellDimensions } from "@earendil-works/pi-tui";
+import { Markdown, visibleWidth, getCapabilities, setCapabilities, setCapabilityOverrides, resetCapabilitiesCache, setCellDimensions } from "@earendil-works/pi-tui";
 const kind = ${JSON.stringify(kind)};
 export default async function(pi) {
-  assert.equal(VERSION, "1.0.0");
+  assert.equal(VERSION, "1.1.0");
   const stock = Markdown.prototype.render;
   const stockUpdate = AssistantMessageComponent.prototype.updateContent;
   const handlers = new Map();
@@ -51,6 +51,16 @@ export default async function(pi) {
           assert.notEqual(Markdown.prototype.render, stock, "must patch the actual CLI Markdown class");
           const lines = new Markdown("$$x^2$$", 0, 0, getMarkdownTheme()).render(60);
           assert.ok(lines.some(line => line.includes("\\u001b_G")), "must rasterize through the active CLI host");
+          const inlineSource = "界 🙂 $x^2$ and $y^2$.";
+          const inline = new Markdown(inlineSource, 1, 0, getMarkdownTheme());
+          for (const width of [20, 37, 60]) {
+            const rendered = inline.render(width);
+            assert.equal(rendered.join("\\n").match(/\\u001b_Ga=T,/gu)?.length, 2);
+            assert.ok(rendered.every(line => visibleWidth(line) <= width), "inline images must fit the actual host width");
+            assert.doesNotMatch(rendered.join("\\n"), /\\$[xy]/u);
+            assert.equal(inline.text, inlineSource, "inline rendering must preserve source");
+            assert.deepEqual(inline.render(width), rendered, "inline images must remain byte-stable");
+          }
         } else {
           assert.equal(getCapabilities().images, "kitty");
           assert.equal(Markdown.prototype.render, stock);
@@ -73,7 +83,7 @@ export default async function(pi) {
     const result = spawnSync(process.execPath, [join(host, cli), "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "-e", probe, "--print", "/pi1-render-probe"], { cwd: home, env, encoding: "utf8", timeout: 60_000, stdio: ["ignore", "pipe", "pipe"] });
     assert.equal(result.status, 0, `${cli}: ${result.error ?? ""}\n${result.stderr}\n${result.stdout}`);
     assert.ok((result.stdout + result.stderr).includes("PI1_RENDER_PROBE_OK"), `${cli}: probe did not complete\n${result.stderr}\n${result.stdout}`);
-    console.log(`${manifest.name}: Pi 1.0 ${cli} host identity, offscreen rendering, non-TUI guards, repeated shutdown and restart passed`);
+    console.log(`${manifest.name}: Pi 1.1 ${cli} host identity, offscreen rendering, non-TUI guards, repeated shutdown and restart passed`);
   }
 } finally {
   await rm(home, { recursive: true, force: true });
