@@ -20,7 +20,7 @@ import { VERSION, initTheme, getMarkdownTheme, AssistantMessageComponent } from 
 import { Markdown, visibleWidth, getCapabilities, setCapabilities, setCapabilityOverrides, resetCapabilitiesCache, setCellDimensions } from "@earendil-works/pi-tui";
 const kind = ${JSON.stringify(kind)};
 export default async function(pi) {
-  assert.equal(VERSION, "1.1.0");
+  assert.equal(VERSION, "1.2.0");
   const stock = Markdown.prototype.render;
   const stockUpdate = AssistantMessageComponent.prototype.updateContent;
   const handlers = new Map();
@@ -83,7 +83,7 @@ export default async function(pi) {
     const result = spawnSync(process.execPath, [join(host, cli), "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "-e", probe, "--print", "/pi1-render-probe"], { cwd: home, env, encoding: "utf8", timeout: 60_000, stdio: ["ignore", "pipe", "pipe"] });
     assert.equal(result.status, 0, `${cli}: ${result.error ?? ""}\n${result.stderr}\n${result.stdout}`);
     assert.ok((result.stdout + result.stderr).includes("PI1_RENDER_PROBE_OK"), `${cli}: probe did not complete\n${result.stderr}\n${result.stdout}`);
-    console.log(`${manifest.name}: Pi 1.1 ${cli} host identity, offscreen rendering, non-TUI guards, repeated shutdown and restart passed`);
+    console.log(`${manifest.name}: Pi 1.2 ${cli} host identity, offscreen rendering, non-TUI guards, repeated shutdown and restart passed`);
   }
 } finally {
   await rm(home, { recursive: true, force: true });
