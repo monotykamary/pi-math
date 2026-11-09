@@ -1,12 +1,11 @@
-import { Resvg } from "@resvg/resvg-js";
-import { liteAdaptor } from "mathjax-full/js/adaptors/liteAdaptor.js";
-import { RegisterHTMLHandler } from "mathjax-full/js/handlers/html.js";
-import { TeX } from "mathjax-full/js/input/tex.js";
-import { AllPackages } from "mathjax-full/js/input/tex/AllPackages.js";
-import { mathjax } from "mathjax-full/js/mathjax.js";
-import { SVG } from "mathjax-full/js/output/svg.js";
-import { SafeHandler } from "mathjax-full/js/ui/safe/SafeHandler.js";
+import { createRequire } from "node:module";
 import { WeightedLruCache } from "./lru-cache.js";
+
+// Rendering is synchronous. Load only optional third-party engines at first
+// formula use, not during extension discovery or text-only session startup.
+const requireEngine = createRequire(import.meta.url);
+let rasterEngine: typeof import("@resvg/resvg-js") | undefined;
+const loadRasterEngine = () => rasterEngine ??= requireEngine("@resvg/resvg-js") as typeof import("@resvg/resvg-js");
 
 const MAX_INPUT_LENGTH = 20_000;
 const MAX_RASTER_WIDTH = 4096;
@@ -203,9 +202,14 @@ function chooseDeviceScale(logicalWidth: number, logicalHeight: number): number 
   return undefined;
 }
 
-export async function createSvgMathRenderer(
-  options: SvgMathRendererOptions = {},
-): Promise<SvgMathRenderer> {
+function createConverter(options: SvgMathRendererOptions) {
+  const { liteAdaptor } = requireEngine("mathjax-full/js/adaptors/liteAdaptor.js") as typeof import("mathjax-full/js/adaptors/liteAdaptor.js");
+  const { RegisterHTMLHandler } = requireEngine("mathjax-full/js/handlers/html.js") as typeof import("mathjax-full/js/handlers/html.js");
+  const { TeX } = requireEngine("mathjax-full/js/input/tex.js") as typeof import("mathjax-full/js/input/tex.js");
+  const { AllPackages } = requireEngine("mathjax-full/js/input/tex/AllPackages.js") as typeof import("mathjax-full/js/input/tex/AllPackages.js");
+  const { mathjax } = requireEngine("mathjax-full/js/mathjax.js") as typeof import("mathjax-full/js/mathjax.js");
+  const { SVG } = requireEngine("mathjax-full/js/output/svg.js") as typeof import("mathjax-full/js/output/svg.js");
+  const { SafeHandler } = requireEngine("mathjax-full/js/ui/safe/SafeHandler.js") as typeof import("mathjax-full/js/ui/safe/SafeHandler.js");
   const adaptor = liteAdaptor({
     cjkCharWidth: 1,
     unknownCharWidth: 0.6,
@@ -238,6 +242,13 @@ export async function createSvgMathRenderer(
       idPattern: /^mjx-eqn:[-A-Za-z0-9_.]+$/,
     },
   });
+  return { adaptor, input, document };
+}
+
+export async function createSvgMathRenderer(
+  options: SvgMathRendererOptions = {},
+): Promise<SvgMathRenderer> {
+  let converter: ReturnType<typeof createConverter> | undefined;
   const svgCache = new WeightedLruCache<SvgCacheValue>(512, MAX_SVG_CACHE_BYTES);
   const rasterCache = new WeightedLruCache<RasterCacheValue>(256, MAX_RASTER_CACHE_BYTES);
   let lastFailure: FormulaRenderFailure | undefined;
@@ -255,6 +266,7 @@ export async function createSvgMathRenderer(
     }
 
     try {
+      const { adaptor, input, document } = converter ??= createConverter(options);
       input.reset();
       const node = document.convert(latex, { display });
       const source = extractSvg(adaptor.outerHTML(node));
@@ -396,6 +408,7 @@ export async function createSvgMathRenderer(
           return rememberFailure(failure("invalid-svg", "Could not construct the padded SVG"));
         }
 
+        const { Resvg } = loadRasterEngine();
         const rendered = new Resvg(padded, {
           font: {
             loadSystemFonts: needsExternalFonts && (options.loadSystemFonts ?? true),
