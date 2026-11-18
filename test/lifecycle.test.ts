@@ -18,6 +18,10 @@ test("discovery and non-TUI sessions never patch; shutdown cancels rearm and TUI
       assert.equal(Markdown.prototype.render, stock);
       await fire("session_shutdown", mode);
     }
+    const interrupted = fire("session_start");
+    await fire("session_shutdown");
+    await interrupted;
+    assert.equal(Markdown.prototype.render, stock, "a stale async load must not install a patch after shutdown");
     await fire("session_start");
     assert.notEqual(Markdown.prototype.render, stock);
     await fire("session_shutdown");

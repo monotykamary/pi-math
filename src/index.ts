@@ -1,8 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getCapabilities } from "@earendil-works/pi-tui";
-import { loadSvgMathRendererOptions } from "./config.js";
-import { installMarkdownMathPatch, type MathPatchController } from "./markdown-patch.js";
-import { createTerminalMathRenderer, type TerminalMathRenderer } from "./renderer.js";
+import type { MathPatchController } from "./markdown-patch.js";
+import type { TerminalMathRenderer } from "./renderer.js";
+
+interface MathUi {
+  renderer: TerminalMathRenderer;
+  installMarkdownMathPatch: typeof import("./markdown-patch.js").installMarkdownMathPatch;
+  getCapabilities: typeof import("@earendil-works/pi-tui").getCapabilities;
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -14,31 +18,45 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-export default async function piMathExtension(pi: ExtensionAPI): Promise<void> {
-  let renderer: TerminalMathRenderer | undefined;
+export default function piMathExtension(pi: ExtensionAPI): void {
+  let loading: Promise<MathUi | undefined> | undefined;
+  let active: MathUi | undefined;
   let loadFailure: string | undefined;
-  try {
-    renderer = await createTerminalMathRenderer(loadSvgMathRendererOptions());
-  } catch (error) {
-    loadFailure = errorMessage(error);
-  }
-
   let patch: MathPatchController | undefined;
   let rearm: ReturnType<typeof setImmediate> | undefined;
+  let generation = 0;
 
-  pi.on("session_start", (_event, ctx) => {
-    // pi-streaming-guard replaces Markdown.render wholesale on session_start,
-    // which would leave pi-math bypassed. Defer one macrotask so every
-    // session_start handler has run, then re-layer pi-math on top and delegate
-    // into whatever render won.
-    if (ctx.mode === "tui" && renderer) {
-      patch ??= installMarkdownMathPatch(renderer);
-      if (rearm) clearImmediate(rearm);
-      rearm = setImmediate(() => { rearm = undefined; patch?.rearm(); });
-    }
-    if (loadFailure && ctx.mode === "tui") {
+  const loadUi = () => loading ??= Promise.all([
+    import("./renderer.js"),
+    import("./config.js"),
+    import("./markdown-patch.js"),
+    import("@earendil-works/pi-tui"),
+  ]).then(async ([renderer, config, markdown, tui]) => ({
+    renderer: await renderer.createTerminalMathRenderer(config.loadSvgMathRendererOptions()),
+    installMarkdownMathPatch: markdown.installMarkdownMathPatch,
+    getCapabilities: tui.getCapabilities,
+  })).catch((error: unknown) => {
+    loadFailure = errorMessage(error);
+    return undefined;
+  });
+
+  pi.on("session_start", async (_event, ctx) => {
+    const current = ++generation;
+    // RPC and print workers keep the extension registered without loading the
+    // renderer and Markdown patch graph. The engines still wait for a formula.
+    if (ctx.mode !== "tui") return;
+    const ui = await loadUi();
+    if (generation !== current) return;
+    if (!ui) {
       ctx.ui.notify(`pi-math failed to load: ${loadFailure}`, "error");
+      return;
     }
+    active = ui;
+    patch ??= ui.installMarkdownMathPatch(ui.renderer);
+    // pi-streaming-guard can replace Markdown.render in its session_start.
+    // Re-layer over whichever renderer is installed after the handlers run.
+    if (rearm) clearImmediate(rearm);
+    rearm = setImmediate(() => { rearm = undefined; patch?.rearm(); });
   });
 
   // Re-assert the wrapper each turn: a mid-session "/streaming-guard on" (or
@@ -48,21 +66,24 @@ export default async function piMathExtension(pi: ExtensionAPI): Promise<void> {
   });
 
   pi.on("session_shutdown", () => {
+    generation++;
     if (rearm) clearImmediate(rearm);
     rearm = undefined;
     patch?.uninstall();
     patch = undefined;
-    renderer?.clear();
+    active?.renderer.clear();
+    active = undefined;
   });
 
   pi.registerCommand("math-render", {
     description: "Control terminal LaTeX image rendering: on, off, status, or clear",
     handler: async (args, ctx) => {
       const action = args.trim().toLowerCase() || "status";
-      if (!patch || !renderer) {
+      if (!patch || !active) {
         ctx.ui.notify(`pi-math is unavailable: ${loadFailure ?? "renderer did not load"}`, "error");
         return;
       }
+      const { renderer, getCapabilities } = active;
       if (action === "on" || action === "enable") {
         patch.setEnabled(true);
         ctx.ui.notify("pi-math enabled", "info");

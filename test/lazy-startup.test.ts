@@ -11,6 +11,7 @@ test("cold discovery and text-only sessions defer engines until synchronous firs
     timeout: 30_000,
   });
   const result = JSON.parse(output.trim().split("\n").at(-1)!);
+  assert.equal(result.headlessModules, 0);
   assert.equal(result.idleModules, 0);
   assert.ok(result.afterModules > 0);
 });

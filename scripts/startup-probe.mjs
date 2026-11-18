@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 const require = createRequire(import.meta.url);
 const lazy = process.argv.includes('--assert-lazy');
 const count = () => Object.keys(require.cache).filter(p => /\/(?:mathjax-full|@resvg)\//.test(p)).length;
+const uiModules = new Set();
+const trace = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    const result = nextResolve(specifier, context);
+    if (/\/src\/(?:renderer|svg-renderer|markdown-patch)\.(?:ts|js)$/.test(result.url)) uiModules.add(result.url);
+    return result;
+  },
+});
 const start = performance.now();
 const { default: extension } = await import('../src/index.ts');
 const imported = performance.now();
@@ -22,7 +30,10 @@ try {
     await hooks.get('session_start')({}, { ...ctx, mode });
     await hooks.get('session_shutdown')({}, { ...ctx, mode });
   }
+  const headlessModules = uiModules.size;
+  if (lazy) assert.equal(headlessModules, 0, 'discovery and headless sessions must not load the renderer graph');
   await hooks.get('session_start')({}, ctx);
+  if (lazy) assert.ok(uiModules.size > 0, 'TUI must load the renderer graph; this verifies the resolver probe');
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(new Markdown('ordinary text', 0, 0, theme).render(60).length);
   for (const action of ['status', 'clear', 'off', 'on']) await commands.get('math-render').handler(action, ctx);
@@ -37,8 +48,9 @@ try {
   assert.deepEqual(component.render(60), lines);
   const afterModules = count();
   assert.ok(afterModules > 0);
-  console.log(JSON.stringify({ importMs: imported-start, discoveryMs: discovered-start, idleModules, firstMs, afterModules }));
+  console.log(JSON.stringify({ importMs: imported-start, discoveryMs: discovered-start, headlessModules, idleModules, firstMs, afterModules }));
 } finally {
   await hooks.get('session_shutdown')({}, ctx);
   assert.equal(Markdown.prototype.render, stock);
+  trace.deregister();
 }
