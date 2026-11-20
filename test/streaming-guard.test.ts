@@ -11,7 +11,7 @@ import piMathExtension from "../src/index.js";
 
 type EventHandler = (event: unknown, ctx: unknown) => unknown;
 type CommandHandler = (args: string, ctx: unknown) => unknown;
-type MarkdownRender = (this: Markdown, width: number) => string[];
+type MarkdownRender = (this: Markdown, width: number) => readonly string[];
 
 interface TestContext {
   mode: "tui";
@@ -41,7 +41,7 @@ const context: TestContext = {
   ui: { notify: () => undefined },
 };
 
-function imageLineCount(lines: string[]): number {
+function imageLineCount(lines: readonly string[]): number {
   return lines.filter((line) => line.includes("\x1b_G")).length;
 }
 

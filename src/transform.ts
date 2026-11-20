@@ -496,7 +496,7 @@ function stripSgr(text: string): string {
 }
 
 /** Remove synthetic fences and their Markdown-only vertical margins. */
-export function stripGeneratedMathFenceLines(lines: string[]): string[] {
+export function stripGeneratedMathFenceLines(lines: readonly string[]): string[] {
   const output: string[] = [];
   let insideGeneratedMath = false;
   let suppressFollowingBlankLines = false;

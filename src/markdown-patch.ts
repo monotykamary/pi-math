@@ -24,7 +24,7 @@ type MarkdownInternals = {
   options?: MarkdownOptions;
 };
 
-type MarkdownRender = (this: Markdown, width: number) => string[];
+type MarkdownRender = (this: Markdown, width: number) => readonly string[];
 
 interface CachedTransform {
   source: string;
@@ -111,7 +111,7 @@ export function installMarkdownMathPatch(renderer: TerminalMathRenderer): MathPa
   let transformLineages: TransformLineage[] = [];
   let lineageUsage = 0;
 
-  const renderMath = function (this: Markdown, width: number, delegate: MarkdownRender): string[] {
+  const renderMath = function (this: Markdown, width: number, delegate: MarkdownRender): readonly string[] {
     const markdown = this as unknown as MarkdownInternals;
     const source = markdown.text;
     const protocol = getCapabilities().images;

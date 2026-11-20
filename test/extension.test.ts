@@ -40,15 +40,15 @@ function isImageLine(line: string): boolean {
   return line.includes("\x1b_G") || line.includes("\x1b]1337;File=");
 }
 
-function imageLines(lines: string[]): string[] {
+function imageLines(lines: readonly string[]): string[] {
   return lines.filter(isImageLine);
 }
 
-function kittyImageCount(lines: string[]): number {
+function kittyImageCount(lines: readonly string[]): number {
   return lines.join("\n").match(/\x1b_Ga=T,/gu)?.length ?? 0;
 }
 
-function kittyImageIds(lines: string[]): number[] {
+function kittyImageIds(lines: readonly string[]): number[] {
   return [...lines.join("\n").matchAll(/\x1b_Ga=T,[^;]*,i=(\d+)(?:,|;)/gu)].map(
     (match) => Number(match[1]),
   );

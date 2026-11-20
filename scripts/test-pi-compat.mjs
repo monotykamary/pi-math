@@ -20,7 +20,7 @@ import { VERSION, initTheme, getMarkdownTheme, AssistantMessageComponent } from 
 import { Markdown, visibleWidth, getCapabilities, setCapabilities, setCapabilityOverrides, resetCapabilitiesCache, setCellDimensions } from "@earendil-works/pi-tui";
 const kind = ${JSON.stringify(kind)};
 export default async function(pi) {
-  assert.equal(VERSION, "1.5.0");
+  assert.equal(VERSION, ${JSON.stringify(manifest.devDependencies["@earendil-works/pi-coding-agent"])});
   const stock = Markdown.prototype.render;
   const stockUpdate = AssistantMessageComponent.prototype.updateContent;
   const handlers = new Map();
